@@ -4,7 +4,7 @@
 ##pacotes e funções
 library(FD)
 
-# descreva o que faz esta funcao
+# funções para CWV
 wsum <- function(x, w) {
   x[is.na(x)]<-0
   w2 <- w / mean(w)
@@ -12,7 +12,6 @@ wsum <- function(x, w) {
   return(x2)
 }
 
-# idem
 wvar <- function(x, w) { 
   x[is.na(x)]<-0
   x.mean <- weighted.mean(x, w)
@@ -49,27 +48,15 @@ tt = apply(abundancia,2,sum) # total number of trees in each type of soil
 tt
 abundRel = t(t(abundancia)/tt) # relative abundances
 apply(abundRel,2,sum) # testing (should sum up to 1)
+abundancia1 = abundRel[sort(unique(atributos1$species)),]
 
+#grafico
 apply(abundancia,2,function(x)sum(x>0)) # richness at each havitat
 plot(sort(abundRel[,"drained"]*100,decreasing=T),xlab="Abundance rank",ylab="Relative abundance (%)",log="y",type="l")
 points(sort(abundRel[,"flooded"]*100,decreasing=T),lty=2,type="l")
 legend(x="topright",lty=1:2,c("drained","flooded"),bty="n")
 
-parcela<-unique(abundancia$Var2) # ???
-#for(i in 1:dim(abundancia)[1])
-#{abundancia$rel[abundancia$Var2==parcela[i]]<-(abundancia$Freq[abundancia$Var2==parcela[i]]/
-#                                                 sum(abundancia$Freq[abundancia$Var2==parcela[i]]))*100}
-# as linhas acima nao funcionaram para mim (algum problema com NA)
-
-#abundancia1<-abundancia[abundancia$Var1 %in% atributos1$species & 
-#                          abundancia$Var2 %in% atributos1$soil,]
-abundancia1 = abundRel[sort(unique(atributos1$species)),]
-
-## calculando FD, CWM, range (10-90 percentis) e CWV observado para cada solo
 #seco
-abundancia.seco<-as.matrix(t(abundancia1$rel[abundancia1$Var2=="drained"])) 
-colnames(abundancia.seco)<-abundancia1$Var1[abundancia1$Var2=="drained"]
-
 atributos.seco<-atributos1[atributos1$soil=="drained",]
 media.seco<-aggregate(atributos.seco[,5:9], by=list(atributos.seco$soil, atributos.seco$species), 
                       mean, na.rm=T)
@@ -77,14 +64,11 @@ atributos.m<-as.matrix(media.seco[,3:7])
 rownames(atributos.m)<-media.seco$Group.2
 
 cwv.seco<-matrix(NA, ncol=5, nrow=1)
-for(i in 1:5){cwv.seco[,i]<-wvar(atributos.m[,i], abundancia.seco)}
-fd.seco<-dbFD(atributos.m, abundancia.seco, w.abun=TRUE, calc.FRic = TRUE, 
+for(i in 1:5){cwv.seco[,i]<-wvar(atributos.m[,i], abundancia1[,1])}
+fd.seco<-dbFD(atributos.m, t(abundancia1[,1]), w.abun=TRUE, calc.FRic = TRUE, 
               calc.CWM = TRUE,calc.FDiv = TRUE, corr="cailliez")
 
 ##alagado
-abundancia.ala<-as.matrix(t(abundancia1$rel[abundancia1$Var2=="flooded"])) 
-colnames(abundancia.ala)<-abundancia1$Var1[abundancia1$Var2=="flooded"]
-
 atributos.ala<-atributos1[atributos1$soil=="flooded",]
 media.ala<-aggregate(atributos.ala[,5:9], by=list(atributos.ala$soil, atributos.ala$species), 
                      mean, na.rm=T)
@@ -92,15 +76,15 @@ atributos.ala<-as.matrix(media.ala[,3:7])
 rownames(atributos.ala)<-media.ala$Group.2
 
 cwv.ala<-matrix(NA, ncol=5, nrow=1)
-for(i in 1:5){  cwv.ala[,i]<-wvar(atributos.ala[,i], abundancia.ala)  }
-fd.ala<-dbFD(atributos.ala, abundancia.ala, w.abun=TRUE, calc.FRic = TRUE, calc.CWM = TRUE,
+for(i in 1:5){  cwv.ala[,i]<-wvar(atributos.ala[,i], abundancia1[,2])  }
+fd.ala<-dbFD(atributos.ala, t(abundancia1[,2]), w.abun=TRUE, calc.FRic = TRUE, calc.CWM = TRUE,
              calc.FDiv = TRUE, corr="cailliez")
 
 ## modelos nulos
 fd.ala.ream<-list()
-cwv.ala.res<-matrix(NA, ncol=5, nrow=1000)
-
 fd.seco.ream<-list()
+
+cwv.ala.res<-matrix(NA, ncol=5, nrow=1000)
 cwv.seco.res<-matrix(NA, ncol=5, nrow=1000)
 
 for(i in 1:1000)
@@ -114,9 +98,9 @@ for(i in 1:1000)
   atributos.ala.res<-as.matrix(media.alagado[,2:6])
   rownames(atributos.ala.res)<-media.alagado$Group.1
   
-  for(i in 1:5){  cwv.ala.res[,i]<-wvar(atributos.ala.res[,i], abundancia.ala)}
-  fd.ala.ream[[i]]<-dbFD(atributos.ala.res, abundancia.ala, w.abun=TRUE, corr="cailliez",
+  fd.ala.ream[[i]]<-dbFD(atributos.ala.res, t(abundancia1[,2]), w.abun=TRUE, corr="cailliez",
                          calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
+  for(j in 1:5){  cwv.ala.res[i,j]<-wvar(atributos.ala.res[,j], abundancia1[,2])}
   
   #seco
   seco<-group.res[group.res$soil.res=="drained",]
@@ -124,15 +108,15 @@ for(i in 1:1000)
   atributos.seco.res<-as.matrix(media.seco[,2:6])
   rownames(atributos.seco.res)<-media.seco$Group.1
   
-  for(i in 1:5){  cwv.seco.res[,i]<-wvar(atributos.seco.res[,i], abundancia.seco)}
-  fd.seco.ream[[i]]<-dbFD(atributos.seco.res, abundancia.seco, w.abun=TRUE, corr="cailliez",
+  fd.seco.ream[[i]]<-dbFD(atributos.seco.res, t(abundancia1[,1]), w.abun=TRUE, corr="cailliez",
                           calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
-}
+  for(l in 1:5){  cwv.seco.res[i,l]<-wvar(atributos.seco.res[,l], abundancia1[,1])}
+  }
 
 
 ##extraindo os valores do objeto list
 #alagado
-fd.ala2<-data.frame( fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
+fd.ala2<-data.frame( nulos=1:1000,fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
                      cwm.sla=NA) 
 
 for(i in 1:1000) 
@@ -146,3 +130,135 @@ for(i in 1:1000)
   fd.ala2$cwm.dm[i]<-fd.ala.ream[[i]][[9]][4]
   fd.ala2$cwm.sla[i]<-fd.ala.ream[[i]][[9]][5]
 }
+
+#seco
+fd.seco2<-data.frame( nulos=1:1000,fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
+                     cwm.sla=NA) 
+
+for(i in 1:1000) 
+{  
+  fd.seco2$fric[i]<-fd.seco.ream[[i]][3]
+  fd.seco2$feve[i]<-fd.seco.ream[[i]][5]
+  fd.seco2$fdiv[i]<-fd.seco.ream[[i]][6]
+  fd.seco2$cwm.la[i]<-fd.seco.ream[[i]][[9]][1]
+  fd.seco2$cwm.lt[i]<-fd.seco.ream[[i]][[9]][2]
+  fd.seco2$cwm.ldmc[i]<-fd.seco.ream[[i]][[9]][3]
+  fd.seco2$cwm.dm[i]<-fd.seco.ream[[i]][[9]][4]
+  fd.seco2$cwm.sla[i]<-fd.seco.ream[[i]][[9]][5]
+}
+
+## transformando a classe list em numeric
+fd.ala3<- matrix(NA, nrow = dim(fd.ala2)[1], ncol = dim(fd.ala2)[2])
+for (i in 1:(dim(fd.ala2)[2])){ fd.ala3[,i] <- c(as.numeric(fd.ala2[[i]]))}
+mode(fd.ala3)
+
+fd.seco3<- matrix(NA, nrow = dim(fd.seco2)[1], ncol = dim(fd.seco2)[2])
+for (i in 1:(dim(fd.seco2)[2])){ fd.seco3[,i] <- c(as.numeric(fd.seco2[[i]]))}
+mode(fd.seco3)
+
+##histogramas
+#alagado
+hist(fd.ala3[,2], freq=F,xlab="Riqueza funcional")
+abline(v=fd.ala$FRic, col="red")
+abline(v=quantile(fd.ala3[,2], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,3], freq=F,xlab="Functional Eveness")
+abline(v=fd.ala$FEve, col="red")
+abline(v=quantile(fd.ala3[,3], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,4], freq=F,xlab="Functional Divergence")
+abline(v=fd.ala$FDiv, col="red")
+abline(v=quantile(fd.ala3[,4], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,5], freq=F,xlab="CWM - Área foliar")
+abline(v=fd.ala$CWM[1], col="red")#cai fora do IC
+abline(v=quantile(fd.ala3[,5], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,6], freq=F,xlab="CWM - Espessura foliar")
+abline(v=fd.ala$CWM[2], col="red")
+abline(v=quantile(fd.ala3[,6], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,7], freq=F,xlab="CWM - Conteúdo de matéria seca")
+abline(v=fd.ala$CWM[3], col="red")
+abline(v=quantile(fd.ala3[,7], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,8], freq=F,xlab="CWM - Densidade da madeira") 
+abline(v=fd.ala$CWM[4], col="red")#cai fora do IC
+abline(v=quantile(fd.ala3[,8], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.ala3[,9], freq=F,xlab="CWM - SLA")
+abline(v=fd.ala$CWM[5], col="red")
+abline(v=quantile(fd.ala3[,9], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.ala.res[,1], freq=F, xlab="CWV - Área Foliar")
+abline(v=cwv.ala[,1], col="red")
+abline(v=quantile(cwv.ala.res[,1], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.ala.res[,2], freq=F, xlab="CWV - Espessura Foliar")
+abline(v=cwv.ala[,2], col="red")
+abline(v=quantile(cwv.ala.res[,2], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.ala.res[,3], freq=F, xlab="CWV - Conteúdo de matéria seca")
+abline(v=cwv.ala[,3], col="red")
+abline(v=quantile(cwv.ala.res[,3], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.ala.res[,4], freq=F, xlab="CWV - Densidade da madeira")
+abline(v=cwv.ala[,4], col="red")
+abline(v=quantile(cwv.ala.res[,4], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.ala.res[,5], freq=F, xlab="CWV - SLA")
+abline(v=cwv.ala[,5], col="red")
+abline(v=quantile(cwv.ala.res[,5], probs=c(0.025,0.975)), lty=2)
+
+#seco
+hist(fd.seco3[,2], freq=F,xlab="Riqueza funcional")
+abline(v=fd.seco$FRic, col="red")
+abline(v=quantile(fd.seco3[,2], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,3], freq=F,xlab="Functional Eveness")
+abline(v=fd.seco$FEve, col="red")
+abline(v=quantile(fd.seco3[,3], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,4], freq=F,xlab="Functional Divergence")
+abline(v=fd.seco$FDiv, col="red")
+abline(v=quantile(fd.seco3[,4], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,5], freq=F,xlab="CWM - Área foliar")
+abline(v=fd.seco$CWM[1], col="red")#cai fora do IC
+abline(v=quantile(fd.seco3[,5], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,6], freq=F,xlab="CWM - Espessura foliar")
+abline(v=fd.seco$CWM[2], col="red")
+abline(v=quantile(fd.seco3[,6], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,7], freq=F,xlab="CWM - Conteúdo de matéria seca")
+abline(v=fd.seco$CWM[3], col="red")
+abline(v=quantile(fd.seco3[,7], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,8], freq=F,xlab="CWM - Densidade da madeira") 
+abline(v=fd.seco$CWM[4], col="red")#cai fora do IC
+abline(v=quantile(fd.seco3[,8], probs=c(0.025,0.975)), lty=2)
+
+hist(fd.seco3[,9], freq=F,xlab="CWM - SLA")
+abline(v=fd.seco$CWM[5], col="red")
+abline(v=quantile(fd.seco3[,9], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.seco.res[,1], freq=F, xlab="CWV - Área Foliar")
+abline(v=cwv.seco[,1], col="red")
+abline(v=quantile(cwv.seco.res[,1], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.seco.res[,2], freq=F, xlab="CWV - Espessura Foliar")
+abline(v=cwv.seco[,2], col="red")
+abline(v=quantile(cwv.seco.res[,2], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.seco.res[,3], freq=F, xlab="CWV - Conteúdo de matéria seca")
+abline(v=cwv.seco[,3], col="red")
+abline(v=quantile(cwv.seco.res[,3], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.seco.res[,4], freq=F, xlab="CWV - Densidade da madeira")
+abline(v=cwv.seco[,4], col="red")
+abline(v=quantile(cwv.seco.res[,4], probs=c(0.025,0.975)), lty=2)
+
+hist(cwv.seco.res[,5], freq=F, xlab="CWV - SLA")
+abline(v=cwv.seco[,5], col="red")
+abline(v=quantile(cwv.seco.res[,5], probs=c(0.025,0.975)), lty=2)
