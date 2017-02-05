@@ -4,117 +4,120 @@
 ##pacotes e funções
 library(FD)
 
+# funções para CWV
 wsum <- function(x, w) {
   x[is.na(x)]<-0
-    w2 <- w / mean(w)
-    x2 <- sum(x * w2)
-    return(x2)
-   }
+  w2 <- w / mean(w)
+  x2 <- sum(x * w2)
+  return(x2)
+}
 
 wvar <- function(x, w) { 
   x[is.na(x)]<-0
-    x.mean <- weighted.mean(x, w)
-    x2 <- (x - x.mean)^2
-    x2.wvar <- wsum(x2, w) / length(x)
-    return(x2.wvar)
-   }#modificado de https://stat.ethz.ch/pipermail/r-sig-ecology/2010-November/001646.html
+  x.mean <- weighted.mean(x, w)
+  x2 <- (x - x.mean)^2
+  x2.wvar <- wsum(x2, w) / length(x)
+  return(x2.wvar)
+}#modificado de https://stat.ethz.ch/pipermail/r-sig-ecology/2010-November/001646.html
 
 ## planilha com os dados de atributos
 atrib<-read.table("Atributos_total_ME2.csv", as.is=T,header=T,sep=",", dec=".", na.strings=" ")
 
 # limpando os dados
-atributos1<-atrib[,c(1,5,6,7,28,32,34,35,36)]
+atributos1<-atrib[,c(1,5,6,7,28,32,34,35,36)] # eh sempre melhor selecionar as colunas pelo seu nome
 
 # excluindo os valores de DM das palmeiras
 atributos1$DM.g.g[atributos1$species== "Euterpe edulis" |
                     atributos1$species=="Bactris hatschbachii"|
                     atributos1$species=="Bactris setosa"|
-                    atributos1$species=="Geonoma schottiana"]<-NA
+                    atributos1$species=="Geonoma schottiana"]<-NA # mais facil seria selecionar a familia; alias nao sei se estou de acordo: por que vc acha que a DM das palmeiras nao eh valida?
 
 ### planilha com os dados de abundância
 censo2<-read.table("PEIC_censo09.csv", as.is=T,sep=",",header=T)
 censo2$solo[censo2$solo=="espodo"]<-"drained"
 censo2$solo[censo2$solo=="neo"]<-"flooded"
+# ha um erro que corrijo com a linha abaixo
+censo2[censo2$gen=="ocotea",c("gen","species")] = c("Ocotea","Ocotea pulchra")
+censo2[censo2$species=="Styrax glabrata",c("epitsp","species")] = c("glabratus","Styrax glabratus")
+censo2[censo2$epitsp=="cinammomum",c("epitsp","species")] = c("cinnamomeum","Solanum cinnamomeum")
 
 ## calculando a abundância relativa por solo
-abundancia<-data.frame(table(censo2$species, factor(censo2$solo)))
+#abundancia<-data.frame(table(censo2$species, factor(censo2$solo)))
+abundancia = table(censo2$species,censo2$solo)[,c("drained","flooded")] # alternativa mais simples
+tt = apply(abundancia,2,sum) # total number of trees in each type of soil
+tt
+abundRel = t(t(abundancia)/tt) # relative abundances
+apply(abundRel,2,sum) # testing (should sum up to 1)
+abundancia1 = abundRel[sort(unique(atributos1$species)),]
 
-parcela<-unique(abundancia$Var2)
-for(i in 1:dim(abundancia)[1])
-{abundancia$rel[abundancia$Var2==parcela[i]]<-(abundancia$Freq[abundancia$Var2==parcela[i]]/
-                                    sum(abundancia$Freq[abundancia$Var2==parcela[i]]))*100}
-abundancia1<-abundancia[abundancia$Var1 %in% atributos1$species & 
-                       abundancia$Var2 %in% atributos1$soil,]
+#grafico
+apply(abundancia,2,function(x)sum(x>0)) # richness at each havitat
+plot(sort(abundRel[,"drained"]*100,decreasing=T),xlab="Abundance rank",ylab="Relative abundance (%)",log="y",type="l")
+points(sort(abundRel[,"flooded"]*100,decreasing=T),lty=2,type="l")
+legend(x="topright",lty=1:2,c("drained","flooded"),bty="n")
 
-## calculando FD, CWM, range (10-90 percentis) e CWV observado para cada solo
 #seco
-abundancia.seco<-as.matrix(t(abundancia1$rel[abundancia1$Var2=="drained"])) 
-colnames(abundancia.seco)<-abundancia1$Var1[abundancia1$Var2=="drained"]
-
 atributos.seco<-atributos1[atributos1$soil=="drained",]
 media.seco<-aggregate(atributos.seco[,5:9], by=list(atributos.seco$soil, atributos.seco$species), 
-                     mean, na.rm=T)
+                      mean, na.rm=T)
 atributos.m<-as.matrix(media.seco[,3:7])
 rownames(atributos.m)<-media.seco$Group.2
 
 cwv.seco<-matrix(NA, ncol=5, nrow=1)
-for(i in 1:5){cwv.seco[,i]<-wvar(atributos.m[,i], abundancia.seco)}
-fd.seco<-dbFD(atributos.m, abundancia.seco, w.abun=TRUE, calc.FRic = TRUE, 
+for(i in 1:5){cwv.seco[,i]<-wvar(atributos.m[,i], abundancia1[,1])}
+fd.seco<-dbFD(atributos.m, t(abundancia1[,1]), w.abun=TRUE, calc.FRic = TRUE, 
               calc.CWM = TRUE,calc.FDiv = TRUE, corr="cailliez")
 
 ##alagado
-abundancia.ala<-as.matrix(t(abundancia1$rel[abundancia1$Var2=="flooded"])) 
-colnames(abundancia.ala)<-abundancia1$Var1[abundancia1$Var2=="flooded"]
-
 atributos.ala<-atributos1[atributos1$soil=="flooded",]
 media.ala<-aggregate(atributos.ala[,5:9], by=list(atributos.ala$soil, atributos.ala$species), 
-                      mean, na.rm=T)
+                     mean, na.rm=T)
 atributos.ala<-as.matrix(media.ala[,3:7])
 rownames(atributos.ala)<-media.ala$Group.2
 
 cwv.ala<-matrix(NA, ncol=5, nrow=1)
-for(i in 1:5){  cwv.ala[,i]<-wvar(atributos.ala[,i], abundancia.ala)  }
-fd.ala<-dbFD(atributos.ala, abundancia.ala, w.abun=TRUE, calc.FRic = TRUE, calc.CWM = TRUE,
+for(i in 1:5){  cwv.ala[,i]<-wvar(atributos.ala[,i], abundancia1[,2])  }
+fd.ala<-dbFD(atributos.ala, t(abundancia1[,2]), w.abun=TRUE, calc.FRic = TRUE, calc.CWM = TRUE,
              calc.FDiv = TRUE, corr="cailliez")
 
 ## modelos nulos
 fd.ala.ream<-list()
-cwv.ala.res<-matrix(NA, ncol=5, nrow=1000)
-
 fd.seco.ream<-list()
+
+cwv.ala.res<-matrix(NA, ncol=5, nrow=1000)
 cwv.seco.res<-matrix(NA, ncol=5, nrow=1000)
 
 for(i in 1:1000)
 {
-      soil.res = sample(atributos1$soil, 1327, replace=FALSE)
-      group.res = cbind(atributos1, soil.res)
-      
-      #alagado
-      alagado<-group.res[group.res$soil.res=="flooded",]
-      media.alagado<-aggregate(alagado[,5:9], by=list(alagado$species), mean, na.rm=T)
-      atributos.ala.res<-as.matrix(media.alagado[,2:6])
-      rownames(atributos.ala.res)<-media.alagado$Group.1
-      
-      for(i in 1:5){  cwv.ala.res[,i]<-wvar(atributos.ala.res[,i], abundancia.ala)}
-      fd.ala.ream[[i]]<-dbFD(atributos.ala.res, abundancia.ala, w.abun=TRUE, corr="cailliez",
-                             calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
-      
-      #seco
-      seco<-group.res[group.res$soil.res=="drained",]
-      media.seco<-aggregate(seco[,5:9], by=list(seco$species), mean, na.rm=T)
-      atributos.seco.res<-as.matrix(media.seco[,2:6])
-      rownames(atributos.seco.res)<-media.seco$Group.1
-      
-      for(i in 1:5){  cwv.seco.res[,i]<-wvar(atributos.seco.res[,i], abundancia.seco)}
-      fd.seco.ream[[i]]<-dbFD(atributos.seco.res, abundancia.seco, w.abun=TRUE, corr="cailliez",
-                              calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
-}
+  soil.res = sample(atributos1$soil, 1327, replace=FALSE)
+  group.res = cbind(atributos1, soil.res)
+  
+  #alagado
+  alagado<-group.res[group.res$soil.res=="flooded",]
+  media.alagado<-aggregate(alagado[,5:9], by=list(alagado$species), mean, na.rm=T)
+  atributos.ala.res<-as.matrix(media.alagado[,2:6])
+  rownames(atributos.ala.res)<-media.alagado$Group.1
+  
+  fd.ala.ream[[i]]<-dbFD(atributos.ala.res, t(abundancia1[,2]), w.abun=TRUE, corr="cailliez",
+                         calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
+  for(j in 1:5){  cwv.ala.res[i,j]<-wvar(atributos.ala.res[,j], abundancia1[,2])}
+  
+  #seco
+  seco<-group.res[group.res$soil.res=="drained",]
+  media.seco<-aggregate(seco[,5:9], by=list(seco$species), mean, na.rm=T)
+  atributos.seco.res<-as.matrix(media.seco[,2:6])
+  rownames(atributos.seco.res)<-media.seco$Group.1
+  
+  fd.seco.ream[[i]]<-dbFD(atributos.seco.res, t(abundancia1[,1]), w.abun=TRUE, corr="cailliez",
+                          calc.FRic = TRUE, calc.CWM = TRUE,calc.FDiv = TRUE)
+  for(l in 1:5){  cwv.seco.res[i,l]<-wvar(atributos.seco.res[,l], abundancia1[,1])}
+  }
 
 
 ##extraindo os valores do objeto list
 #alagado
-fd.ala2<-data.frame( fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
-                         cwm.sla=NA) 
+fd.ala2<-data.frame( nulos=1:1000,fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
+                     cwm.sla=NA) 
 
 for(i in 1:1000) 
 {  
@@ -127,3 +130,34 @@ for(i in 1:1000)
   fd.ala2$cwm.dm[i]<-fd.ala.ream[[i]][[9]][4]
   fd.ala2$cwm.sla[i]<-fd.ala.ream[[i]][[9]][5]
 }
+
+#seco
+fd.seco2<-data.frame( nulos=1:1000,fric=NA, feve=NA, fdiv=NA, cwm.la=NA, cwm.lt=NA, cwm.ldmc=NA, cwm.dm=NA,
+                     cwm.sla=NA) 
+
+for(i in 1:1000) 
+{  
+  fd.seco2$fric[i]<-fd.seco.ream[[i]][3]
+  fd.seco2$feve[i]<-fd.seco.ream[[i]][5]
+  fd.seco2$fdiv[i]<-fd.seco.ream[[i]][6]
+  fd.seco2$cwm.la[i]<-fd.seco.ream[[i]][[9]][1]
+  fd.seco2$cwm.lt[i]<-fd.seco.ream[[i]][[9]][2]
+  fd.seco2$cwm.ldmc[i]<-fd.seco.ream[[i]][[9]][3]
+  fd.seco2$cwm.dm[i]<-fd.seco.ream[[i]][[9]][4]
+  fd.seco2$cwm.sla[i]<-fd.seco.ream[[i]][[9]][5]
+}
+
+## transformando a classe list em numeric
+fd.ala3<- matrix(NA, nrow = dim(fd.ala2)[1], ncol = dim(fd.ala2)[2])
+for (i in 1:(dim(fd.ala2)[2])){ fd.ala3[,i] <- c(as.numeric(fd.ala2[[i]]))}
+mode(fd.ala3)
+
+fd.seco3<- matrix(NA, nrow = dim(fd.seco2)[1], ncol = dim(fd.seco2)[2])
+for (i in 1:(dim(fd.seco2)[2])){ fd.seco3[,i] <- c(as.numeric(fd.seco2[[i]]))}
+mode(fd.seco3)
+
+##histogramas
+#alagado
+hist(fd.ala3[,2], freq=F,xlab="Riqueza funcional")
+abline(v=fd.ala$FRic, col="red")
+abline(v=quantile(fd.ala3[,2], probs=c(0.025,0.975)), lty=2)
